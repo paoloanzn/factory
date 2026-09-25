@@ -13,8 +13,11 @@ from types import FrameType
 
 from factory.client import ClientConfig, FactoryClient, FactoryClientError
 from factory.command import SubprocessRunner
+from factory.core_plugins import load_core_plugins, plugin_units
 from factory.jsonrpc import JsonObject, JsonValue
 from factory.notifications import NotificationLog
+from factory.plugin import PluginError
+from factory.plugin_loader import PluginLoadError
 from factory.setup import (
     FactorySetup,
     SetupConfig,
@@ -23,7 +26,7 @@ from factory.setup import (
 )
 from factory.tcp_server import SslTcpServer, TcpServerError, create_server_context
 from factory.tmux import OperationFailure, TmuxRuntime
-from factory.work import WorkError, WorkRunner, load_work_units
+from factory.work import WorkError, WorkRunner, WorkUnit, load_work_units
 
 
 def main() -> None:
@@ -103,7 +106,12 @@ def _start(args: argparse.Namespace) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     runtime = TmuxRuntime.create(SubprocessRunner(timeout=10), args.session)
     notifications = NotificationLog.open(args.notifications)
-    runner = WorkRunner.create(runtime, notifications, units=load_work_units())
+    try:
+        units = _startup_work_units()
+    except (PluginError, PluginLoadError) as error:
+        print(f"factory start: cannot load core plugin: {error}", file=sys.stderr)
+        return 1
+    runner = WorkRunner.create(runtime, notifications, units=units)
     server = SslTcpServer.create(
         context=create_server_context(args.certificate, args.private_key),
         protocol=runner.protocol,
@@ -128,6 +136,13 @@ def _start(args: argparse.Namespace) -> int:
         runner.close()
         server.close()
     return 0
+
+
+def _startup_work_units() -> tuple[WorkUnit, ...]:
+    """Collect core plugin units plus factory.plugins entry-point units."""
+    return plugin_units(load_core_plugins(Path("plugins/core"))) + tuple(
+        load_work_units()
+    )
 
 
 def _client_config(args: argparse.Namespace) -> ClientConfig:

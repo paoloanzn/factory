@@ -15,6 +15,9 @@ from factory.client import ClientConfig, FactoryClient, FactoryClientError
 from factory.command import SubprocessRunner
 from factory.jsonrpc import JsonObject, JsonValue
 from factory.notifications import NotificationLog
+from factory.plugin import PluginError
+from factory.plugin_config import PluginConfig, PluginConfigError
+from factory.plugin_loader import collect_startup_units
 from factory.setup import (
     FactorySetup,
     SetupConfig,
@@ -103,7 +106,13 @@ def _start(args: argparse.Namespace) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     runtime = TmuxRuntime.create(SubprocessRunner(timeout=10), args.session)
     notifications = NotificationLog.open(args.notifications)
-    runner = WorkRunner.create(runtime, notifications, units=load_work_units())
+    try:
+        config = PluginConfig.load()
+        units = collect_startup_units(config, extra_units=load_work_units())
+    except (PluginConfigError, PluginError) as error:
+        print(f"factory start: {error}", file=sys.stderr)
+        return 1
+    runner = WorkRunner.create(runtime, notifications, units=units)
     server = SslTcpServer.create(
         context=create_server_context(args.certificate, args.private_key),
         protocol=runner.protocol,

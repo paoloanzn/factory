@@ -17,7 +17,7 @@ from factory.jsonrpc import JsonObject, JsonValue
 from factory.notifications import NotificationLog
 from factory.plugin import PluginError
 from factory.plugin_config import PluginConfig, PluginConfigError
-from factory.plugin_loader import collect_startup_units
+from factory.plugin_loader import PluginLoadError, collect_startup_units
 from factory.setup import (
     FactorySetup,
     SetupConfig,
@@ -109,7 +109,7 @@ def _start(args: argparse.Namespace) -> int:
     try:
         config = PluginConfig.load()
         units = collect_startup_units(config, extra_units=load_work_units())
-    except (PluginConfigError, PluginError) as error:
+    except (PluginConfigError, PluginError, PluginLoadError) as error:
         print(f"factory start: {error}", file=sys.stderr)
         return 1
     runner = WorkRunner.create(runtime, notifications, units=units)

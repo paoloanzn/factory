@@ -21,21 +21,30 @@ class DuplicatePluginError(CorePluginError):
 
 
 def load_core_plugins(path: Path) -> tuple[Plugin, ...]:
-    """Load direct, public Python files in filename order."""
+    """Load direct, public Python files in filename order.
+
+    A missing directory loads as empty so an installed Factory without a
+    repository checkout still starts; other read failures raise
+    ``CorePluginDirectoryError``.
+    """
     try:
-        paths = sorted(
+        children = sorted(
             child
             for child in path.iterdir()
             if child.suffix == ".py"
             and not child.name.startswith("_")
             and child.is_file()
         )
+    except FileNotFoundError:
+        # An installed Factory has no plugins/core directory next to the
+        # working directory; there is simply nothing to load.
+        return ()
     except OSError as error:
         raise CorePluginDirectoryError(f"Cannot read core plugins at {path}") from error
 
     plugins: list[Plugin] = []
     names: set[str] = set()
-    for file in paths:
+    for file in children:
         plugin = load_plugin(file)
         if plugin.name in names:
             raise DuplicatePluginError(f"Duplicate core plugin name: {plugin.name}")

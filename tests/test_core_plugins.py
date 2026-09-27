@@ -68,9 +68,10 @@ def test_empty_core_directory_returns_no_plugins(tmp_path: Path) -> None:
     assert plugin_units(()) == ()
 
 
-def test_missing_core_directory_fails_clearly(tmp_path: Path) -> None:
-    with pytest.raises(CorePluginDirectoryError, match="Cannot read core plugins"):
-        load_core_plugins(tmp_path / "missing")
+def test_missing_core_directory_loads_as_empty(tmp_path: Path) -> None:
+    # An installed Factory runs without a repository checkout, so a
+    # missing core directory means no core plugins, not a startup failure.
+    assert load_core_plugins(tmp_path / "missing") == ()
 
 
 def test_core_path_must_be_a_directory(tmp_path: Path) -> None:
